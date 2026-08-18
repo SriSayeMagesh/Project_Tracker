@@ -1,0 +1,21 @@
+{
+  "spreadsheet_id": "1aSYuIkxUeHdkhX-yG0eqx-xr9N8tXYMFseiipD0Jgjg",
+  "sheet_name": "Sheet1",
+  "priority_senders": [
+    "compcom@greatlakes.edu.in",
+    "@greatlakes.edu.in"
+  ],
+  "keywords": [
+    "urgent",
+    "action required",
+    "deadline",
+    "exam",
+    "schedule",
+    "mandatory",
+    "submission",
+    "meeting",
+    "asap"
+  ],
+  "min_participants": 3,
+  "default_lookback_days": 2
+}
