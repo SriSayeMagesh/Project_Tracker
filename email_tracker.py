@@ -124,28 +124,39 @@ def is_important(email_data, config):
     body_lower = email_data['body'].lower()
     labels = email_data.get('labelIds', [])
 
-    if any(b in sender_lower for b in ['no-reply', 'noreply', 'info@twinmind', 'quillbot', 'linkedin']):
-        if 'STARRED' not in labels:
-            return False, None
+    # Filter out marketing and automated spam senders UNLESS starred by user
+    promo_blocklist = [
+        'no-reply', 'noreply', 'info@twinmind', 'quillbot', 'linkedin', 
+        'fruitkart', 'grammarly', 'offers@', 'marketing@', 'newsletter@'
+    ]
+    if any(b in sender_lower for b in promo_blocklist) and 'STARRED' not in labels:
+        return False, None
 
+    # 1. Starred Emails (Guaranteed Inclusion)
+    if 'STARRED' in labels:
+        if 'case competition' in subject_lower or 'case competition' in body_lower:
+            return True, "Case Competition (Starred)"
+        return True, "Starred Mail"
+
+    # 2. Great Lakes Comp Com
     if 'compcom@greatlakes.edu.in' in sender_lower:
         return True, "Great Lakes Comp Com"
 
-    if 'STARRED' in labels:
-        return True, "Starred Mail"
+    # 3. Case Competition Keyword
+    if 'case competition' in subject_lower or 'case competition' in body_lower:
+        return True, "Case Competition"
 
+    # 4. Due Date / Date / Deadline Keywords
+    if any(k in subject_lower or k in body_lower for k in ['due date', 'deadline', 'submission date', 'last date']):
+        return True, "Due Date Alert"
+
+    # 5. Exam & Academic Schedules
     if any(k in subject_lower or k in body_lower for k in ['exam schedule', 'end term', 'timetable', 'mandatory attendance']):
         return True, "Exams & Schedule"
 
-    if any(k in subject_lower or k in body_lower for k in ['newsletter', 'mélange', 'melange', 'article']):
-        return True, "Newsletter Submission"
-
+    # 6. Direct Personal Emails
     if 'CATEGORY_PERSONAL' in labels or 'IMPORTANT' in labels:
         return True, "Direct Attention"
-
-    for kw in config.get('keywords', []):
-        if kw.lower() in subject_lower or kw.lower() in body_lower:
-            return True, f"Action: {kw.title()}"
 
     return False, None
 
@@ -186,7 +197,7 @@ def apply_formatting(worksheet):
         logging.warning(f"Formatting warning: {e}")
 
 def process_and_update_sheet():
-    logging.info("Starting email processing run...")
+    logging.info("Starting updated email tracker run...")
     config = load_config()
     gmail_service, gs_client = get_authenticated_services()
     
@@ -219,7 +230,7 @@ def process_and_update_sheet():
         hyperlink = f'=HYPERLINK("{gmail_url}", "{clean_subject}")'
 
         deadline = extract_deadline(email['body'])
-        status = "ACTION REQUIRED" if deadline != "N/A" or "Comp Com" in project_category or "Starred" in project_category or "Direct" in project_category else "Pending Review"
+        status = "ACTION REQUIRED" if deadline != "N/A" or "Comp Com" in project_category or "Starred" in project_category or "Case" in project_category or "Due Date" in project_category else "Pending Review"
 
         new_rows.append([
             sno,
@@ -235,11 +246,11 @@ def process_and_update_sheet():
     if new_rows:
         worksheet.append_rows(new_rows, value_input_option='USER_ENTERED')
         apply_formatting(worksheet)
-        log_msg = f"Successfully processed and added {len(new_rows)} clean email entries."
+        log_msg = f"Successfully populated sheet with {len(new_rows)} target email entries."
         logging.info(log_msg)
         print(log_msg)
     else:
-        log_msg = "No matching primary, starred, or direct emails found."
+        log_msg = "No matching primary, starred, or case competition emails found."
         logging.info(log_msg)
         print(log_msg)
 

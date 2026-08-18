@@ -6,9 +6,12 @@
     "@greatlakes.edu.in"
   ],
   "keywords": [
+    "case competition",
+    "due date",
+    "date",
+    "deadline",
     "urgent",
     "action required",
-    "deadline",
     "exam",
     "schedule",
     "mandatory",
@@ -17,5 +20,5 @@
     "asap"
   ],
   "min_participants": 3,
-  "default_lookback_days": 2
+  "default_lookback_days": 7
 }
