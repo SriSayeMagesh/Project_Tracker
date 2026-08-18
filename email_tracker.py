@@ -18,6 +18,11 @@ from gspread_formatting import (
     ConditionalFormatRule, get_conditional_format_rules
 )
 
+try:
+    from plyer import notification
+except ImportError:
+    notification = None
+
 BASE_DIR = Path(__file__).parent
 LOGS_DIR = BASE_DIR / "logs"
 LOGS_DIR.mkdir(exist_ok=True)
@@ -62,7 +67,8 @@ def get_authenticated_services():
         with open(TOKEN_PATH, 'w') as token:
             token.write(creds.to_json())
 
-    gmail_service = build('gmail', 'v1', credentials=creds)
+    # cache_discovery=False prevents the file_cache log warning
+    gmail_service = build('gmail', 'v1', credentials=creds, cache_discovery=False)
     gs_client = gspread.authorize(creds)
     return gmail_service, gs_client
 
@@ -85,6 +91,21 @@ def clean_html_text(raw_text):
     text = html.unescape(text)
     return ' '.join(text.split())
 
+def extract_body_recursive(payload):
+    body = ""
+    if 'parts' in payload:
+        for part in payload['parts']:
+            mime = part.get('mimeType', '')
+            if mime == 'text/plain' and 'data' in part.get('body', {}):
+                body += base64.urlsafe_b64decode(part['body']['data']).decode('utf-8', errors='ignore') + " "
+            elif mime == 'text/html' and not body and 'data' in part.get('body', {}):
+                body += base64.urlsafe_b64decode(part['body']['data']).decode('utf-8', errors='ignore') + " "
+            elif 'parts' in part:
+                body += extract_body_recursive(part) + " "
+    elif 'body' in payload and 'data' in payload['body']:
+        body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', errors='ignore')
+    return body
+
 def parse_email_payload(msg_data):
     headers = msg_data.get('payload', {}).get('headers', [])
     header_dict = {h['name'].lower(): h['value'] for h in headers}
@@ -94,18 +115,8 @@ def parse_email_payload(msg_data):
     to_field = header_dict.get('to', '')
     date_str = header_dict.get('date', '')
     
-    body = ""
-    payload = msg_data.get('payload', {})
-    if 'parts' in payload:
-        for part in payload['parts']:
-            if part.get('mimeType') == 'text/plain' and 'data' in part.get('body', {}):
-                body += base64.urlsafe_b64decode(part['body']['data']).decode('utf-8', errors='ignore')
-            elif part.get('mimeType') == 'text/html' and not body and 'data' in part.get('body', {}):
-                body += base64.urlsafe_b64decode(part['body']['data']).decode('utf-8', errors='ignore')
-    elif 'body' in payload and 'data' in payload['body']:
-        body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', errors='ignore')
-
-    cleaned_body = clean_html_text(body)
+    raw_body = extract_body_recursive(msg_data.get('payload', {}))
+    cleaned_body = clean_html_text(raw_body)
 
     return {
         'id': msg_data.get('id'),
@@ -117,48 +128,6 @@ def parse_email_payload(msg_data):
         'body': cleaned_body,
         'labelIds': msg_data.get('labelIds', [])
     }
-
-def is_important(email_data, config):
-    sender_lower = email_data['sender'].lower()
-    subject_lower = email_data['subject'].lower()
-    body_lower = email_data['body'].lower()
-    labels = email_data.get('labelIds', [])
-
-    # Filter out marketing and automated spam senders UNLESS starred by user
-    promo_blocklist = [
-        'no-reply', 'noreply', 'info@twinmind', 'quillbot', 'linkedin', 
-        'fruitkart', 'grammarly', 'offers@', 'marketing@', 'newsletter@'
-    ]
-    if any(b in sender_lower for b in promo_blocklist) and 'STARRED' not in labels:
-        return False, None
-
-    # 1. Starred Emails (Guaranteed Inclusion)
-    if 'STARRED' in labels:
-        if 'case competition' in subject_lower or 'case competition' in body_lower:
-            return True, "Case Competition (Starred)"
-        return True, "Starred Mail"
-
-    # 2. Great Lakes Comp Com
-    if 'compcom@greatlakes.edu.in' in sender_lower:
-        return True, "Great Lakes Comp Com"
-
-    # 3. Case Competition Keyword
-    if 'case competition' in subject_lower or 'case competition' in body_lower:
-        return True, "Case Competition"
-
-    # 4. Due Date / Date / Deadline Keywords
-    if any(k in subject_lower or k in body_lower for k in ['due date', 'deadline', 'submission date', 'last date']):
-        return True, "Due Date Alert"
-
-    # 5. Exam & Academic Schedules
-    if any(k in subject_lower or k in body_lower for k in ['exam schedule', 'end term', 'timetable', 'mandatory attendance']):
-        return True, "Exams & Schedule"
-
-    # 6. Direct Personal Emails
-    if 'CATEGORY_PERSONAL' in labels or 'IMPORTANT' in labels:
-        return True, "Direct Attention"
-
-    return False, None
 
 def extract_deadline(text):
     if not text:
@@ -172,8 +141,50 @@ def extract_deadline(text):
                     return parsed.strftime("%Y-%m-%d")
     return "N/A"
 
+def analyze_project_and_status(email_data):
+    subject = email_data['subject'].lower()
+    body = email_data['body'].lower()
+    sender = email_data['sender'].lower()
+    labels = email_data.get('labelIds', [])
+
+    promo_blocklist = ['no-reply', 'noreply', 'info@twinmind', 'quillbot', 'linkedin', 'fruitkart', 'grammarly']
+    if any(b in sender for b in promo_blocklist) and 'STARRED' not in labels:
+        return None, None, None
+
+    if any(k in subject or k in body for k in ['mark', 'score', 'result', 'grade']):
+        project = "Academics: Grades"
+    elif any(k in subject or k in body for k in ['exam schedule', 'end term', 'session planned', 'concentration', 'allocation', 'timetable']):
+        project = "Academics: Schedule"
+    elif any(k in subject or k in body for k in ['case competition', 'consilium', 'bottoms up', 'inkling', 'competition', 'challenge', 'hackathon']):
+        project = "Case Competition"
+    elif any(k in subject or k in body for k in ['mock interview', 'interview', 'placement', 'corporate readiness', 'banking transformation']):
+        project = "Career & Placements"
+    elif any(k in subject or k in body for k in ['login credentials', 'password', 'security information', 'email verification', 'sap id']):
+        project = "Account & System"
+    elif any(k in subject or k in body for k in ['talentwood', 'newsletter', 'mélange', 'melange']):
+        project = "Events & Clubs"
+    elif 'compcom@greatlakes.edu.in' in sender:
+        project = "Comp Com"
+    elif 'STARRED' in labels:
+        project = "Starred Priority"
+    else:
+        project = "General Academic"
+
+    deadline = extract_deadline(email_data['body'])
+
+    if any(k in subject for k in ['mark', 'score', 'certificate', 'login credentials', 'email verification', 'security information', 'reset your']):
+        status = "FYI / COMPLETED"
+    elif deadline != "N/A" or any(k in subject or k in body for k in ['urgent', 'mandatory', 'action required', 'register', 'submit', 'closes today']):
+        status = "ACTION REQUIRED"
+    elif any(k in subject for k in ['schedule', 'session planned', 'allocation', 'invitation']):
+        status = "UPCOMING / SCHEDULED"
+    else:
+        status = "PENDING REVIEW"
+
+    return project, status, deadline
+
 def summarize_text(text):
-    if not text:
+    if not text or len(text.strip()) == 0:
         return "No content summary available."
     if nlp:
         doc = nlp(text[:2000])
@@ -182,22 +193,20 @@ def summarize_text(text):
             return " ".join(sents[:2])
     return text[:250] + "..."
 
-def apply_formatting(worksheet):
-    try:
-        rules = get_conditional_format_rules(worksheet)
-        rules.clear()
-        red_rule = ConditionalFormatRule(
-            ranges=[],
-            booleanRule=BooleanCondition('DATE_BEFORE', ['EXACT_DATE', datetime.date.today().isoformat()]),
-            format=CellFormat(backgroundColor=Color(0.95, 0.78, 0.78))
-        )
-        rules.append(red_rule)
-        rules.save()
-    except Exception as e:
-        logging.warning(f"Formatting warning: {e}")
+def send_desktop_notification(total_entries, action_count):
+    if notification:
+        try:
+            notification.notify(
+                title="Project Tracker Sync Complete",
+                message=f"Logged {total_entries} emails to Sheets.\n{action_count} items require action!",
+                app_name="Project Tracker",
+                timeout=7
+            )
+        except Exception as e:
+            logging.warning(f"Failed to trigger desktop notification: {e}")
 
 def process_and_update_sheet():
-    logging.info("Starting updated email tracker run...")
+    logging.info("Starting refined email tracker run...")
     config = load_config()
     gmail_service, gs_client = get_authenticated_services()
     
@@ -217,8 +226,8 @@ def process_and_update_sheet():
         msg_data = gmail_service.users().messages().get(userId='me', id=msg_meta['id']).execute()
         email = parse_email_payload(msg_data)
         
-        important, project_category = is_important(email, config)
-        if not important:
+        project, status, deadline = analyze_project_and_status(email)
+        if not project:
             continue
 
         clean_sub_key = email['subject'].strip().lower()
@@ -229,12 +238,9 @@ def process_and_update_sheet():
         clean_subject = email["subject"].replace('"', '""')
         hyperlink = f'=HYPERLINK("{gmail_url}", "{clean_subject}")'
 
-        deadline = extract_deadline(email['body'])
-        status = "ACTION REQUIRED" if deadline != "N/A" or "Comp Com" in project_category or "Starred" in project_category or "Case" in project_category or "Due Date" in project_category else "Pending Review"
-
         new_rows.append([
             sno,
-            project_category,
+            project,
             status,
             deadline,
             hyperlink,
@@ -245,12 +251,15 @@ def process_and_update_sheet():
 
     if new_rows:
         worksheet.append_rows(new_rows, value_input_option='USER_ENTERED')
-        apply_formatting(worksheet)
-        log_msg = f"Successfully populated sheet with {len(new_rows)} target email entries."
+        
+        action_count = sum(1 for row in new_rows if row[2] == "ACTION REQUIRED")
+        log_msg = f"Successfully populated sheet with {len(new_rows)} categorised email entries ({action_count} action required)."
         logging.info(log_msg)
         print(log_msg)
+        
+        send_desktop_notification(len(new_rows), action_count)
     else:
-        log_msg = "No matching primary, starred, or case competition emails found."
+        log_msg = "No matching primary or starred emails found."
         logging.info(log_msg)
         print(log_msg)
 

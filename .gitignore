@@ -1,8 +1,6 @@
-﻿credentials.json
-token.json
-venv/
-.venv/
+﻿venv/
 __pycache__/
 *.pyc
-logs/
-*.log
+credentials.json
+token.json
+.vscode/

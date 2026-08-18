@@ -1,0 +1,16 @@
+2026-08-18 23:15:51,763 [INFO] Starting updated email tracker run...
+2026-08-18 23:15:51,788 [INFO] file_cache is only supported with oauth2client<4.0.0
+2026-08-18 23:16:28,859 [WARNING] Formatting warning: BooleanCondition.values has inappropriate length/content for condition type DATE_BEFORE
+2026-08-18 23:16:28,860 [INFO] Successfully populated sheet with 16 target email entries.
+2026-08-18 23:21:37,392 [INFO] Starting refined email tracker run...
+2026-08-18 23:21:37,397 [INFO] file_cache is only supported with oauth2client<4.0.0
+2026-08-18 23:22:43,176 [INFO] Starting refined email tracker run...
+2026-08-18 23:22:43,183 [INFO] file_cache is only supported with oauth2client<4.0.0
+2026-08-18 23:23:28,252 [WARNING] Formatting warning: BooleanCondition.values has inappropriate length/content for condition type DATE_BEFORE
+2026-08-18 23:23:28,252 [INFO] Successfully populated sheet with 31 categorised email entries.
+2026-08-18 23:24:30,680 [INFO] Starting refined email tracker run...
+2026-08-18 23:24:30,685 [INFO] file_cache is only supported with oauth2client<4.0.0
+2026-08-18 23:25:15,547 [WARNING] Formatting warning: BooleanCondition.values has inappropriate length/content for condition type DATE_BEFORE
+2026-08-18 23:25:15,548 [INFO] Successfully populated sheet with 31 categorised email entries.
+2026-08-18 23:31:32,854 [INFO] Starting refined email tracker run...
+2026-08-18 23:32:18,750 [INFO] Successfully populated sheet with 31 categorised email entries (19 action required).

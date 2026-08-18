@@ -1,0 +1,9 @@
+2026-08-18 22:42:47,142 [INFO] Please visit this URL to authorize this application: https://accounts.google.com/o/oauth2/auth?response_type=code&client_id=372019873844-h1jq9pl7gqd2iarhci81jmkh4m7i79qk.apps.googleusercontent.com&redirect_uri=http%3A%2F%2Flocalhost%3A52926%2F&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.readonly+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fspreadsheets&state=jfnPNGt1nFlCI5QMaPDWaujLfjfn0I&code_challenge=NsLdPnHlpsijejWPa5Q9mZLcCWzXYgChe-JJFZdyqos&code_challenge_method=S256&access_type=offline
+2026-08-18 22:42:59,156 [INFO] "GET /?state=jfnPNGt1nFlCI5QMaPDWaujLfjfn0I&iss=https://accounts.google.com&code=4/0ATsMZqDIU2HE1S3BpS2VPMyCh-qWFZ1E240nk6qKXj4QdxhwdD0oAImKmegbypAi5Ma4Ag&scope=https://www.googleapis.com/auth/gmail.readonly%20https://www.googleapis.com/auth/spreadsheets HTTP/1.1" 200 65
+2026-08-18 22:43:00,706 [INFO] file_cache is only supported with oauth2client<4.0.0
+2026-08-18 22:48:04,638 [INFO] file_cache is only supported with oauth2client<4.0.0
+2026-08-18 22:48:40,550 [WARNING] Formatting warning: BooleanCondition.values has inappropriate length/content for condition type DATE_BEFORE
+2026-08-18 22:48:40,551 [INFO] Appended 3 rows.
+2026-08-18 22:54:31,157 [INFO] file_cache is only supported with oauth2client<4.0.0
+2026-08-18 22:57:18,573 [INFO] file_cache is only supported with oauth2client<4.0.0
+2026-08-18 22:57:50,902 [WARNING] Formatting warning: BooleanCondition.values has inappropriate length/content for condition type DATE_BEFORE
